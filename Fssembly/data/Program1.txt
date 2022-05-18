@@ -1,1 +1,14 @@
-line 1
+var index 100
+var one 1
+l 1 one
+l 2 one
+l 3 one
+l 4 index
+:start
+add 1 1 2
+s r4 1
+add 4 3 4
+add 2 1 2
+s r4 2
+add 4 3 4
+j start

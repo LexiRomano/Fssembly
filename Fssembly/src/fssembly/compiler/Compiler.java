@@ -256,7 +256,7 @@ public class Compiler {
 				return var;
 			}
 		}
-		throw new IllegalArgumentException("Unknown Reference");
+		throw new IllegalArgumentException("Unknown Reference \"" + name + "\"");
 	}
 	
 	public static String[] DICTIONARY = {"l", "s", "add", "sub", "mul", "div", "mod",
