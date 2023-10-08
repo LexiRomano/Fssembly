@@ -1,18 +1,8 @@
-package fssembly.compiler;
+package main;
 
-import java.util.ArrayList;
-
-public class Label extends Referenceable {
-	private String name;
-	
-	public Label(String name) {
-		this.name = name;
-		references = new ArrayList<Integer>();
-	}
-	
-	public String getName() {
-		return name;
-	}
+public abstract class Referenceable {
+	private int line = -1;
+	protected String name = null;
 	
 	public int getLine() {
 		if (line == -1) {
@@ -25,10 +15,13 @@ public class Label extends Referenceable {
 		if (newLine < 0) {
 			throw new IllegalArgumentException("Line cannot be negative");
 		}
+		if (newLine > 0xFFFF) {
+			throw new IllegalArgumentException("Line cannot be greater than 0xFFFF!");
+		}
 		line = newLine;
 	}
+	
+	public String getName() {
+		return name;
+	}
 }
-
-
-
-
