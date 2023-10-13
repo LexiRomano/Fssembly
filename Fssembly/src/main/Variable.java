@@ -20,6 +20,15 @@ public class Variable extends Referenceable {
 				throw new IllegalArgumentException("Type could not be parsed!");
 			}
 			
+			public static boolean isVar(String s) {
+				try {
+					parseType(s);
+					return true;
+				} catch (IllegalArgumentException e) {
+					return false;
+				}
+			}
+			
 			public int getSize() {
 				if (this == VAR) {
 					return 1;

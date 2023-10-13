@@ -79,7 +79,7 @@ public class Fssembler {
 		attempts++;
 		
 		// Reading file
-		String ln;
+		String line;
 		ArrayList<String> fileIn = new ArrayList<String>();
 		FileReader fileHandle;
 		BufferedReader fileStream;
@@ -89,40 +89,38 @@ public class Fssembler {
 
 			fileStream = new BufferedReader(fileHandle);
 
-			while ((ln = fileStream.readLine()) != null) {
-				fileIn.add(ln);
+			while ((line = fileStream.readLine()) != null) {
+				fileIn.add(line);
 			}
 			fileHandle.close();
 			fileStream.close();
 
 		} catch (FileNotFoundException e) {
-			outText(attempts, "File \"" + textField.getText() + "\" not found!");
+			outText(attempts, "File \"" + textField.getText() + "\" not found!", -1);
 			return;
 		} catch (IOException e) {
-			outText(attempts, "An unexpected error occured :[");
+			outText(attempts, "An unexpected error occured :[", -1);
 			return;
 		}
 		int headerVarSpace = -1, headerExecutionSpace = -1;
 		
 		// trimming dead space
 		for (int i = 0; i < fileIn.size(); i++) {
+			fileIn.set(i, fileIn.get(i).trim());
 			if (fileIn.get(i).trim().split(" ")[0].equals("")) {
-				fileIn.remove(i);
-				i--;
+				fileIn.set(i, "");
 			}
 		}
-		
 		
 		try {
 			if (fileIn.get(0).charAt(0) == '#') {
 				headerExecutionSpace = parseInt(fileIn.get(0).split(" ")[1]);
 				headerVarSpace = parseInt(fileIn.get(0).split(" ")[2]);
-				fileIn.remove(0);
 			}
 		} catch (Exception e) {
 		}
 		if (headerVarSpace == -1 || headerExecutionSpace == -1) {
-			outText(attempts, "Header formatted incorrectly!");
+			outText(attempts, "Header formatted incorrectly!", 1);
 			return;
 		}
 		
@@ -130,35 +128,43 @@ public class Fssembler {
 		String[] split;
 		Referenceable r;
 		references = new ArrayList<Referenceable>();
-		for (var line : fileIn) {
+		for (int i = 0; i < fileIn.size(); i++) {
+			line = fileIn.get(i);
+			if (line.length() == 0) {
+				continue;
+			}
 			split = line.split(" ");
 			r = null;
 			if (split.length == 1 && line.charAt(0) == ':') {
 				// label
 				r = new Label(split[0].substring(1));
 			}
-			if (split.length == 2) {
+			if (Variable.VAR_TYPE.isVar(split[0])) {
 				// variables
 				try {
 					r = new Variable(line.split(" ")[0], line.split(" ")[1]);
 					r.setline(headerVarSpace);
 					headerVarSpace += ((Variable) r).getType().getSize();
 				} catch (IllegalArgumentException e) {
-					// not a var, oh well!
+					outText(attempts, e.getMessage(), i + 1);
+					return;
+				} catch (ArrayIndexOutOfBoundsException e) {
+					outText(attempts, "Variable requires a name!", i + 1);
+					return;
 				}
 			}
 			
 			if (r != null) {
 				for (char c : Command.getReservedChars()) {
 					if (r.getName().contains(String.valueOf(c))) {
-						outText(attempts, "Variabe/label name contains a reserved character!");
+						outText(attempts, "Variabe/label name contains a reserved character!", i + 1);
 						return;
 					}
 				}
 				for (var ref : references) {
 					if (ref.getName().equals(r.getName())) {
 						outText(attempts, "Duplicate variable/label name \""
-								+ r.getName() + "\"!");
+								+ r.getName() + "\"!", i + 1);
 						return;
 					}
 				}
@@ -171,7 +177,11 @@ public class Fssembler {
 		Command c;
 		var commands = new ArrayList<Command>();
 		int outLine = 0;
-		for (var line : fileIn) {
+		for (int i = 0; i < fileIn.size(); i++) {
+			line = fileIn.get(i);
+			if (line.length() == 0) {
+				continue;
+			}
 			split = line.split(" ");
 			if (split.length != 0) {
 				if (split[0].charAt(0) == ':') {
@@ -191,7 +201,7 @@ public class Fssembler {
 						}
 					}
 				} catch (IllegalArgumentException e) {
-					outText(attempts, e.getMessage());
+					outText(attempts, e.getMessage(), i + 1);
 					return;
 				}
 			}
@@ -220,16 +230,20 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
-			outText(attempts, "Error when saving to \"data/o.fbin\"");
+			outText(attempts, "Error when saving to \"data/o.fbin\"", -1);
 			return;
 		}
 		
-		outText(attempts, "Successfully fssembled \"" + textField.getText() + "\"!");
+		outText(attempts, "Successfully fssembled \"" + textField.getText() + "\"!", -1);
 		
 	}
 	
-	private static void outText(int attempts, String message) {
-		textArea.setText("Attempts: " + attempts + "\n\n" + message);
+	private static void outText(int attempts, String message, int line) {
+		if (line == -1) {
+			textArea.setText("Attempts: " + attempts + "\n\n" + message);
+		} else {
+			textArea.setText("Attempts: " + attempts + "\n\n" + message + " (line " + line + ")");
+		}
 	}
 	
 	private static int parseInt(String s) {
