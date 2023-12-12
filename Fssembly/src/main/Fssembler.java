@@ -194,7 +194,9 @@ public class Fssembler {
 				if (split[0].charAt(0) == ':') {
 					for (var ref : references) {
 						if (ref instanceof Label) {
-							ref.setline(outLine);
+							if (ref.getName().equals(split[0].substring(1))) {
+								ref.setline(outLine);
+							}
 						}
 					}
 				}
