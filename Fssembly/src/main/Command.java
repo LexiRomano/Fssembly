@@ -34,6 +34,8 @@ public class Command {
 		JOV,
 		JOS,
 		RFS,
+		REL,
+		REP,
 		NOP,
 		SHD;
 		
@@ -48,6 +50,8 @@ public class Command {
 				BRC,
 				NOT,
 				RFS,
+				REL,
+				REP,
 				NOP,
 				SHD
 		};
@@ -214,6 +218,8 @@ public class Command {
 			put(JOV, 0x14);
 			put(JOS, 0x54);
 			put(RFS, 0x15);
+			put(REL, 0x01);
+			put(REP, 0x81);
 			put(NOP, 0x00);
 			put(SHD, 0xFF);
 	}};
@@ -286,6 +292,7 @@ public class Command {
 
 	private int literal = -1;
 	private int plusModifier = 0;
+	private int rOffset = 0;
 	private Referenceable reference = null;
 	private COMMANDS command = null;
 	private MODIFIERS modifier = null;
@@ -349,7 +356,23 @@ public class Command {
 		}
 	}
 	
+	public void setRelativeOffset(int offset) {
+		if (offset < 0) {
+			throw new IllegalArgumentException("Offset cannot be less than zero!");
+		}
+		rOffset = offset;
+	}
+	
 	public String[] getOutput() {
+		if (reference != null && (reference instanceof Label ||
+				(reference instanceof Variable && ((Variable) reference).isRelative()))) {
+			var out = new String[getLength()];
+			out[0] = String.format("%1$02X", COMMANDS.REL.getValue(MODIFIERS.NA));
+			out[1] = String.format("%1$02X", command.getValue(modifier));
+			out[2] = String.format("%1$02X", ((reference.getLine() - rOffset - 1 + plusModifier) & 0xFF00) >> 8);
+			out[3] = String.format("%1$02X", (reference.getLine() - rOffset - 1 + plusModifier) & 0xFF);
+			return out;
+		}
 		var out = new String[getLength()];
 		out[0] = String.format("%1$02X", command.getValue(modifier));
 		if (out.length == 1) {
@@ -360,17 +383,22 @@ public class Command {
 			return out;
 		}
 		if (reference == null) {
-			out[1] = String.format("%1$02X", (literal + plusModifier) / 0x100);
-			out[2] = String.format("%1$02X", (literal + plusModifier) % 0x100);
+			out[1] = String.format("%1$02X", ((literal + plusModifier) & 0xFF00) >> 8);
+			out[2] = String.format("%1$02X", (literal + plusModifier) & 0xFF);
 		} else {
-			out[1] = String.format("%1$02X", (reference.getLine() + plusModifier) / 0x100);
-			out[2] = String.format("%1$02X", (reference.getLine() + plusModifier) % 0x100);
+			out[1] = String.format("%1$02X", ((reference.getLine() + plusModifier) & 0xFF00) >> 8);
+			out[2] = String.format("%1$02X", (reference.getLine() + plusModifier) & 0xFF);
 		}
+		
 		
 		return out;
 	}
 	
 	public int getLength() {
+		if (reference != null && (reference instanceof Label ||
+				(reference instanceof Variable && ((Variable) reference).isRelative()))) {
+			return 4;
+		}
 		if (modifier.equals(MODIFIERS.NA) || modifier.equals(MODIFIERS.X)) {
 			return 1;
 		} else if (modifier.equals(MODIFIERS.I)) {

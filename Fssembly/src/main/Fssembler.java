@@ -102,7 +102,7 @@ public class Fssembler {
 			outText(attempts, "An unexpected error occured :[", -1);
 			return;
 		}
-		int headerVarSpace = -1, headerExecutionSpace = -1;
+		int headerVarSpace = -1;
 		
 		// trimming dead space
 		for (int i = 0; i < fileIn.size(); i++) {
@@ -114,14 +114,16 @@ public class Fssembler {
 		
 		try {
 			if (fileIn.get(0).charAt(0) == '#') {
-				headerExecutionSpace = parseInt(fileIn.get(0).split(" ")[1]);
-				headerVarSpace = parseInt(fileIn.get(0).split(" ")[2]);
+				headerVarSpace = parseInt(fileIn.get(0).split(" ")[1]);
+			} else {
+				outText(attempts, "Header formatted incorrectly!", 1);
+				return;
 			}
 		} catch (Exception e) {
-		}
-		if (headerVarSpace == -1 || headerExecutionSpace == -1) {
-			outText(attempts, "Header formatted incorrectly!", 1);
-			return;
+			if (!fileIn.get(0).split(" ")[1].equals("A")) { // Automatic var space
+				outText(attempts, "Header formatted incorrectly!", 1);
+				return;
+			}
 		}
 		
 		// first pass: finding labels and variables
@@ -143,8 +145,13 @@ public class Fssembler {
 				// variables
 				try {
 					r = new Variable(line.split(" ")[0], line.split(" ")[1]);
-					r.setline(headerVarSpace);
-					headerVarSpace += ((Variable) r).getType().getSize();
+					if (headerVarSpace != -1) {
+						r.setline(headerVarSpace);
+						headerVarSpace += ((Variable) r).getType().getSize();
+					} else {
+						((Variable) r).setIsRelative(true);
+					}
+					
 				} catch (IllegalArgumentException e) {
 					outText(attempts, e.getMessage(), i + 1);
 					return;
@@ -187,7 +194,7 @@ public class Fssembler {
 				if (split[0].charAt(0) == ':') {
 					for (var ref : references) {
 						if (ref instanceof Label) {
-							ref.setline(outLine + headerExecutionSpace);
+							ref.setline(outLine);
 						}
 					}
 				}
@@ -195,6 +202,7 @@ public class Fssembler {
 					for (var com : Command.COMMANDS.values()) {
 						if (com.toString().equals(split[0])) {
 							c = new Command(com, split.length > 1 ? split[1] : null, references);
+							c.setRelativeOffset(outLine);
 							outLine += c.getLength();
 							commands.add(c);
 							break;
@@ -203,6 +211,17 @@ public class Fssembler {
 				} catch (IllegalArgumentException e) {
 					outText(attempts, e.getMessage(), i + 1);
 					return;
+				}
+			}
+		}
+		
+		// Third pass: assigning relative variable locations (if applicable)
+		if (headerVarSpace == -1) {
+			headerVarSpace = 0;
+			for (var ref : references) {
+				if (ref instanceof Variable) {
+					ref.setline(outLine + headerVarSpace);
+					headerVarSpace += ((Variable) ref).getType().getSize();
 				}
 			}
 		}

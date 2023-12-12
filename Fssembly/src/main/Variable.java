@@ -37,6 +37,7 @@ public class Variable extends Referenceable {
 			}
 	}
 	
+	private boolean relative = false;
 	private VAR_TYPE varType = null;
 	
 	public Variable(String type, String name) {
@@ -46,6 +47,14 @@ public class Variable extends Referenceable {
 	
 	public VAR_TYPE getType() {
 		return varType;
+	}
+	
+	public void setIsRelative(boolean relative) {
+		this.relative = relative;
+	}
+	
+	public boolean isRelative() {
+		return relative;
 	}
 }
 
