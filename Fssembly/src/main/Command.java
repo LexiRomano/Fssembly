@@ -344,7 +344,7 @@ public class Command {
 				}
 				modifier = MODIFIERS.getModifier(argument, this.command, null);
 				if (literal < 0
-						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && !this.command.equals(COMMANDS.STX))
+						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && !this.command.equals(COMMANDS.LDX))
 						|| literal > 0xffff) {
 					throw new IllegalArgumentException("Literal out of range!");
 				}
