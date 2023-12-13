@@ -59,7 +59,7 @@ public class Fssembler {
 		con.gridy = 1;
 		panel.add(textArea, con);
 		
-		frame = new Frame("Fssembler v0.2");
+		frame = new Frame("Fssembler v0.3");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
@@ -236,12 +236,21 @@ public class Fssembler {
 				fileOut.add(s);
 			}
 		}
-		
+		String outName = "";
 		try {
 			FileWriter fileW;
 			PrintWriter printW;
+			
+			int a = 0;
+			if (textField.getText().split("/").length > 1) {
+				a = textField.getText().split("/")[0].length() + 1;
+			}
+			split = textField.getText().split("/");
+			split = split[split.length - 1].split("\\.");
+			int b = split[split.length - 1].length();
+			outName += textField.getText().substring(a, textField.getText().length() - b - 1);
 
-			fileW = new FileWriter("data/o.fbn");
+			fileW = new FileWriter("fbn/" + outName + ".fbn");
 			printW = new PrintWriter(fileW);
 
 			for (String s : fileOut) {
@@ -251,11 +260,11 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
-			outText(attempts, "Error when saving to \"data/o.fbin\"", -1);
+			outText(attempts, "Error when saving to \"fbn/" + outName + ".fbn\"", -1);
 			return;
 		}
 		
-		outText(attempts, "Successfully fssembled \"" + textField.getText() + "\"!", -1);
+		outText(attempts, "Successfully fssembled \"fbn/" + outName + ".fbn\"!", -1);
 		
 	}
 	
