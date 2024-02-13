@@ -169,6 +169,20 @@ public class Command {
 			return false;
 		}
 		
+		public static COMMANDS[] PNP = {
+				LDA,
+				STA
+		};
+		
+		public static boolean isPNP(COMMANDS c) {
+			for (var pnp : PNP) {
+				if (c.equals(pnp)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		
 		public int getValue(MODIFIERS m) {
 			int out = commandValues.get(this);
 			if (m.equals(MODIFIERS.L)) {
@@ -182,6 +196,9 @@ public class Command {
 			}
 			if (m.equals(MODIFIERS.P)) {
 				return out + 0x80;
+			}
+			if (m.equals(MODIFIERS.PNP)) {
+				return out + 0xA0;
 			}
 			return out;
 		}
@@ -231,7 +248,8 @@ public class Command {
 		L,
 		X,
 		LX,
-		P;
+		P,
+		PNP;
 
 		public static MODIFIERS getModifier(String s, COMMANDS com, Referenceable reference) {
 			if (s == null) {
@@ -280,6 +298,12 @@ public class Command {
 				if (type.equals(Variable.VAR_TYPE.VAR) || type.equals(Variable.VAR_TYPE.DBL)) {
 					return L;
 				}
+				if (s.charAt(s.length() - 1) == '+') {
+					if (type.equals(Variable.VAR_TYPE.PND) && COMMANDS.isPNP(com)) {
+						return PNP;
+					}
+					throw new IllegalArgumentException("The \"+\" modifier is not supported in this use");
+				}
 				return P;
 			}
 			throw new IllegalArgumentException("Could not resolve modifier!");
@@ -321,13 +345,6 @@ public class Command {
 		for (var r : references) {
 			if (cleanedArgument.equals(r.getName())) {
 				reference = r;
-				if (argument.endsWith("+")) {
-					if (r instanceof Variable && ((Variable) r).getType().getSize() == 2) {
-						plusModifier = 1;
-					} else {
-						throw new IllegalArgumentException("Cannot use the + modifier here!");
-					}
-				}
 				break;
 			}
 		}
@@ -354,6 +371,17 @@ public class Command {
 		} else {
 			modifier = MODIFIERS.getModifier(argument, this.command, reference);
 		}
+		if (argument.endsWith("+")) {
+			if (reference instanceof Variable && ((Variable) reference).getType().getSize() == 2) {
+				if (!modifier.equals(MODIFIERS.PNP)) {
+					plusModifier = 1;
+				}
+				
+			} else {
+				throw new IllegalArgumentException("Cannot use the + modifier here!");
+			}
+		}
+		
 	}
 	
 	public void setRelativeOffset(int offset) {
@@ -371,6 +399,9 @@ public class Command {
 			out[1] = String.format("%1$02X", command.getValue(modifier));
 			out[2] = String.format("%1$02X", ((reference.getLine() - rOffset - 1 + plusModifier) & 0xFF00) >> 8);
 			out[3] = String.format("%1$02X", (reference.getLine() - rOffset - 1 + plusModifier) & 0xFF);
+			if (modifier.equals(MODIFIERS.PNP)) {
+				out[out.length - 1] = "01";
+			}
 			return out;
 		}
 		var out = new String[getLength()];
@@ -390,18 +421,21 @@ public class Command {
 			out[2] = String.format("%1$02X", (reference.getLine() + plusModifier) & 0xFF);
 		}
 		
-		
 		return out;
 	}
 	
 	public int getLength() {
 		if (reference != null && (reference instanceof Label ||
 				(reference instanceof Variable && ((Variable) reference).isRelative()))) {
+			if (modifier.equals(MODIFIERS.PNP)) {
+				return 5;
+			}
 			return 4;
 		}
 		if (modifier.equals(MODIFIERS.NA) || modifier.equals(MODIFIERS.X)) {
 			return 1;
-		} else if (modifier.equals(MODIFIERS.I)) {
+		}
+		if (modifier.equals(MODIFIERS.I)) {
 			if (command.equals(COMMANDS.LDX)) {
 				return 3;
 			}

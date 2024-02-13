@@ -59,7 +59,7 @@ public class Fssembler {
 		con.gridy = 1;
 		panel.add(textArea, con);
 		
-		frame = new Frame("Fssembler v0.3");
+		frame = new Frame("Fssembler v0.4.0");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
