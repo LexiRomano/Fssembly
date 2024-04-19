@@ -1,5 +1,0 @@
-# A
-LDA 1
-ADD 1
-STA @0x8000
-SHD

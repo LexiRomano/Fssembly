@@ -18,6 +18,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 
 import javax.swing.AbstractAction;
+import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
@@ -27,8 +28,6 @@ public class Fssembler {
 	private static JTextField textField;
 	private static JTextArea textArea;
 
-	private static int attempts = 0;
-	
 	public static void main(String[] args) {
 		
 		panel = new Panel(new GridBagLayout());
@@ -43,7 +42,7 @@ public class Fssembler {
 		textField.addActionListener(new AbstractAction() {
 			private static final long serialVersionUID = -6622822293547374865L;
 			@Override
-		    public void actionPerformed(ActionEvent e){fssemble();}
+		    public void actionPerformed(ActionEvent e){handleGo();}
 		});
 		con.gridy = 0;
 		panel.add(textField, con);
@@ -57,9 +56,12 @@ public class Fssembler {
 		textArea.setEditable(false);
 		textArea.setFocusable(false);
 		con.gridy = 1;
-		panel.add(textArea, con);
 		
-		frame = new Frame("Fssembler v0.4.0");
+		JScrollPane scrollPane = new JScrollPane(textArea);
+		
+		panel.add(scrollPane, con);
+		
+		frame = new Frame("Fssembler v0.5.0");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
@@ -73,36 +75,58 @@ public class Fssembler {
 		
 	}
 	
+	private static void handleGo() {
+		attempts++;
+		try {
+			var file = readFile(textField.getText());
+			if (file.size() == 0) {
+				outText(new Response("File is empty!", -1));
+				return;
+			}
+			var split = file.get(0).split(" ");
+			
+			if (split.length == 2 && split[0].equals("#") && split[1].equals("B")) {
+				// Batch assembling
+				textArea.setText("Batch assembling...");
+				
+				for (int i = 1; i < file.size(); i++) {
+					try {
+						attempts++;
+						outTextAppend(fssemble(readFile(file.get(i)), file.get(i)));
+					} catch (FileNotFoundException e) {
+						outTextAppend(new Response("File \"" + file.get(i) + "\" not found!", -1));
+					} catch (IOException e) {
+						outTextAppend(new Response("An unexpected error occured :[", -1));
+					}
+					
+				}
+				
+				textArea.setText(textArea.getText() + "\n\nBatch assembling complete!");
+				
+			} else {
+				outText(fssemble(file, textField.getText()));
+			}
+			
+			
+			
+		} catch (FileNotFoundException e) {
+			outText(new Response("File \"" + textField.getText() + "\" not found!", -1));
+		} catch (IOException e) {
+			outText(new Response("An unexpected error occured :[", -1));
+		}
+		
+	}
+	
+	private static int attempts = 0;
 	private static ArrayList<Referenceable> references;
 	
-	private static void fssemble() {
-		attempts++;
-		
-		// Reading file
+	private static Response fssemble(ArrayList<String> fileIn, String fileName) {
 		String line;
-		ArrayList<String> fileIn = new ArrayList<String>();
-		FileReader fileHandle;
-		BufferedReader fileStream;
-		
-		try {
-			fileHandle = new FileReader(textField.getText());
-
-			fileStream = new BufferedReader(fileHandle);
-
-			while ((line = fileStream.readLine()) != null) {
-				fileIn.add(line);
-			}
-			fileHandle.close();
-			fileStream.close();
-
-		} catch (FileNotFoundException e) {
-			outText(attempts, "File \"" + textField.getText() + "\" not found!", -1);
-			return;
-		} catch (IOException e) {
-			outText(attempts, "An unexpected error occured :[", -1);
-			return;
-		}
 		int headerVarSpace = -1;
+		
+		if (fileIn.size() == 0) {
+			return new Response("File is empty!", -1);
+		}
 		
 		// trimming dead space
 		for (int i = 0; i < fileIn.size(); i++) {
@@ -116,15 +140,24 @@ public class Fssembler {
 			if (fileIn.get(0).charAt(0) == '#') {
 				headerVarSpace = parseInt(fileIn.get(0).split(" ")[1]);
 			} else {
-				outText(attempts, "Header formatted incorrectly!", 1);
-				return;
+				return new Response("Header formatted incorrectly!", 1);
 			}
 		} catch (Exception e) {
 			if (!fileIn.get(0).split(" ")[1].equals("A")) { // Automatic var space
-				outText(attempts, "Header formatted incorrectly!", 1);
-				return;
+				return new Response("Header formatted incorrectly!", 1);
 			}
 		}
+		
+		String name = null;
+		
+		// executable file
+		if (fileIn.get(0).split(" ").length == 3) {
+			name = fileIn.get(0).split(" ")[2];
+			if (name.length() > 32) {
+				return new Response("Executable name too long!", 1);
+			}
+		}
+		
 		
 		// first pass: finding labels and variables
 		String[] split;
@@ -153,26 +186,22 @@ public class Fssembler {
 					}
 					
 				} catch (IllegalArgumentException e) {
-					outText(attempts, e.getMessage(), i + 1);
-					return;
+					return new Response(e.getMessage(), i + 1);
 				} catch (ArrayIndexOutOfBoundsException e) {
-					outText(attempts, "Variable requires a name!", i + 1);
-					return;
+					return new Response("Variable requires a name!", i + 1);
 				}
 			}
 			
 			if (r != null) {
 				for (char c : Command.getReservedChars()) {
 					if (r.getName().contains(String.valueOf(c))) {
-						outText(attempts, "Variabe/label name contains a reserved character!", i + 1);
-						return;
+						return new Response("Variabe/label name contains a reserved character!", i + 1);
 					}
 				}
 				for (var ref : references) {
 					if (ref.getName().equals(r.getName())) {
-						outText(attempts, "Duplicate variable/label name \""
+						return new Response("Duplicate variable/label name \""
 								+ r.getName() + "\"!", i + 1);
-						return;
 					}
 				}
 				
@@ -184,6 +213,11 @@ public class Fssembler {
 		Command c;
 		var commands = new ArrayList<Command>();
 		int outLine = 0;
+		
+		if (name != null) {
+			outLine = 33;
+		}
+		
 		for (int i = 0; i < fileIn.size(); i++) {
 			line = fileIn.get(i);
 			if (line.length() == 0) {
@@ -211,8 +245,7 @@ public class Fssembler {
 						}
 					}
 				} catch (IllegalArgumentException e) {
-					outText(attempts, e.getMessage(), i + 1);
-					return;
+					return new Response(e.getMessage(), i + 1);
 				}
 			}
 		}
@@ -230,25 +263,41 @@ public class Fssembler {
 		
 		// outputing
 		var fileOut = new ArrayList<String>();
+		if (name != null) {
+			// name if its an executable file
+			for (int i = 0; i < 33; i++) {
+				if (i < name.length()) {
+					fileOut.add(String.format("%1$02X", (int)name.charAt(i)));
+				} else {
+					fileOut.add("00");
+				}
+			}
+		}
 		for (var com : commands) {
+			// commands
 			split = com.getOutput();
 			for (var s : split) {
 				fileOut.add(s);
 			}
 		}
+		if (name != null) {
+			// subsector count if its an executable file
+			fileOut.set(32, String.format("%1$02X", (int)Math.ceil(fileOut.size() / 256.0)));
+		}
+		
 		String outName = "";
 		try {
 			FileWriter fileW;
 			PrintWriter printW;
 			
 			int a = 0;
-			if (textField.getText().split("/").length > 1) {
-				a = textField.getText().split("/")[0].length() + 1;
+			if (fileName.split("/").length > 1) {
+				a = fileName.split("/")[0].length() + 1;
 			}
-			split = textField.getText().split("/");
+			split = fileName.split("/");
 			split = split[split.length - 1].split("\\.");
 			int b = split[split.length - 1].length();
-			outName += textField.getText().substring(a, textField.getText().length() - b - 1);
+			outName += fileName.substring(a, fileName.length() - b - 1);
 
 			fileW = new FileWriter("fbn/" + outName + ".fbn");
 			printW = new PrintWriter(fileW);
@@ -260,20 +309,48 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
-			outText(attempts, "Error when saving to \"fbn/" + outName + ".fbn\"", -1);
-			return;
+			return new Response("Error when saving to \"fbn/" + outName + ".fbn\"", -1);
 		}
 		
-		outText(attempts, "Successfully fssembled \"fbn/" + outName + ".fbn\"!", -1);
+		return new Response("Successfully fssembled \"fbn/" + outName + ".fbn\"!", -1);
 		
 	}
 	
-	private static void outText(int attempts, String message, int line) {
-		if (line == -1) {
-			textArea.setText("Attempts: " + attempts + "\n\n" + message);
+	private static void outText(Response response) {
+		if (response.getLine() == -1) {
+			textArea.setText("Attempts: " + attempts + "\n\n" + response.getMessage());
 		} else {
-			textArea.setText("Attempts: " + attempts + "\n\n" + message + " (line " + line + ")");
+			textArea.setText("Attempts: " + attempts + "\n\n" + response.getMessage()
+					+ " (line " + response.getLine() + ")");
 		}
+	}
+	
+	private static void outTextAppend(Response response) {
+		if (response.getLine() == -1) {
+			textArea.setText(textArea.getText() + "\n\nAttempts: " + attempts + "\n\n" + response.getMessage());
+		} else {
+			textArea.setText(textArea.getText() + "\n\nAttempts: " + attempts + "\n\n" + response.getMessage()
+					+ " (line " + response.getLine() + ")");
+		}
+	}
+	
+	private static ArrayList<String> readFile(String fileName) throws IOException {
+		String line;
+		ArrayList<String> fileIn = new ArrayList<String>();
+		FileReader fileHandle;
+		BufferedReader fileStream;
+		
+		fileHandle = new FileReader(fileName);
+
+		fileStream = new BufferedReader(fileHandle);
+
+		while ((line = fileStream.readLine()) != null) {
+			fileIn.add(line);
+		}
+		fileHandle.close();
+		fileStream.close();
+		
+		return fileIn;
 	}
 	
 	private static int parseInt(String s) {
