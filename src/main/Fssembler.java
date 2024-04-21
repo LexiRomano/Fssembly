@@ -80,23 +80,22 @@ public class Fssembler {
 		try {
 			var file = readFile(textField.getText());
 			if (file.size() == 0) {
-				outText(new Response("File is empty!", -1));
+				outText(new Response("File is empty!"));
 				return;
 			}
 			var split = file.get(0).split(" ");
 			
 			if (split.length == 2 && split[0].equals("#") && split[1].equals("B")) {
 				// Batch assembling
-				textArea.setText("Batch assembling...");
+				outText(new Response("Batch assembling..."));
 				
 				for (int i = 1; i < file.size(); i++) {
 					try {
-						attempts++;
 						outTextAppend(fssemble(readFile(file.get(i)), file.get(i)));
 					} catch (FileNotFoundException e) {
-						outTextAppend(new Response("File \"" + file.get(i) + "\" not found!", -1));
+						outTextAppend(new Response("File \"" + file.get(i) + "\" not found!"));
 					} catch (IOException e) {
-						outTextAppend(new Response("An unexpected error occured :[", -1));
+						outTextAppend(new Response("An unexpected error occured :["));
 					}
 					
 				}
@@ -110,9 +109,9 @@ public class Fssembler {
 			
 			
 		} catch (FileNotFoundException e) {
-			outText(new Response("File \"" + textField.getText() + "\" not found!", -1));
+			outText(new Response("File \"" + textField.getText() + "\" not found!"));
 		} catch (IOException e) {
-			outText(new Response("An unexpected error occured :[", -1));
+			outText(new Response("An unexpected error occured :["));
 		}
 		
 	}
@@ -125,7 +124,7 @@ public class Fssembler {
 		int headerVarSpace = -1;
 		
 		if (fileIn.size() == 0) {
-			return new Response("File is empty!", -1);
+			return new Response("File is empty!");
 		}
 		
 		// trimming dead space
@@ -143,7 +142,11 @@ public class Fssembler {
 				return new Response("Header formatted incorrectly!", 1);
 			}
 		} catch (Exception e) {
-			if (!fileIn.get(0).split(" ")[1].equals("A")) { // Automatic var space
+			String s = fileIn.get(0).split(" ")[1];
+			if (s.equals("R") || s.equals("RP")) {
+				return raw(fileIn, fileName, s.contains("P"));
+			}
+			if (!s.equals("A") && !s.equals("AP")) { // Automatic var space
 				return new Response("Header formatted incorrectly!", 1);
 			}
 		}
@@ -151,7 +154,7 @@ public class Fssembler {
 		String name = null;
 		
 		// executable file
-		if (fileIn.get(0).split(" ").length == 3) {
+		if (fileIn.get(0).split(" ").length >= 3) {
 			name = fileIn.get(0).split(" ")[2];
 			if (name.length() > 32) {
 				return new Response("Executable name too long!", 1);
@@ -259,6 +262,7 @@ public class Fssembler {
 					headerVarSpace += ((Variable) ref).getType().getSize();
 				}
 			}
+			headerVarSpace = -1;
 		}
 		
 		// outputing
@@ -280,6 +284,23 @@ public class Fssembler {
 				fileOut.add(s);
 			}
 		}
+		if (headerVarSpace == -1) { // Adding explicit locations for vars at the end if vars are automatic
+			for (var ref : references) {
+				if (ref instanceof Variable) {
+					for (int i = 0; i < ((Variable)ref).getType().getSize(); i++) {
+						fileOut.add("00");
+					}
+				}
+			}
+		}
+		
+		if (fileIn.get(0).split(" ").length >= 2 && fileIn.get(0).split(" ")[1].contains("P")) {
+			// Padding file with zeros
+			while (fileOut.size() % 256 != 0) {
+				fileOut.add("00");
+			}
+		}
+		
 		if (name != null) {
 			// subsector count if its an executable file
 			fileOut.set(32, String.format("%1$02X", (int)Math.ceil(fileOut.size() / 256.0)));
@@ -309,11 +330,66 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
+			return new Response("Error when saving to \"fbn/" + outName + ".fbn\"");
+		}
+		
+		return new Response("Successfully fssembled \"fbn/" + outName + ".fbn\"!");
+		
+	}
+	
+	private static Response raw(ArrayList<String> fileIn, String fileName, boolean pad) {
+		var fileOut = new ArrayList<String>();
+		int line = 1;
+		int lineVal;
+		try {
+			while (line < fileIn.size()) {
+				
+				lineVal = parseInt(fileIn.get(line));
+				if (lineVal > 0xFF || lineVal < 0) {
+					return new Response("Number out of range!", line + 1);
+				}
+				fileOut.add(String.format("%1$02X", lineVal));
+				line++;
+			}
+		} catch(NumberFormatException e) {
+			return new Response("Could not resolve number!", line + 1);
+		}
+		
+		if (pad) {
+			while (fileOut.size() % 256 != 0) {
+				fileOut.add("00");
+			}
+		}
+		
+		String outName = "";
+		String[] split;
+		try {
+			FileWriter fileW;
+			PrintWriter printW;
+			
+			int a = 0;
+			if (fileName.split("/").length > 1) {
+				a = fileName.split("/")[0].length() + 1;
+			}
+			split = fileName.split("/");
+			split = split[split.length - 1].split("\\.");
+			int b = split[split.length - 1].length();
+			outName += fileName.substring(a, fileName.length() - b - 1);
+
+			fileW = new FileWriter("fbn/" + outName + ".fbn");
+			printW = new PrintWriter(fileW);
+
+			for (String s : fileOut) {
+				printW.println(s);
+			}
+
+			fileW.close();
+			printW.close();
+		} catch(IOException e) {
 			return new Response("Error when saving to \"fbn/" + outName + ".fbn\"", -1);
 		}
 		
 		return new Response("Successfully fssembled \"fbn/" + outName + ".fbn\"!", -1);
-		
 	}
 	
 	private static void outText(Response response) {
@@ -327,9 +403,9 @@ public class Fssembler {
 	
 	private static void outTextAppend(Response response) {
 		if (response.getLine() == -1) {
-			textArea.setText(textArea.getText() + "\n\nAttempts: " + attempts + "\n\n" + response.getMessage());
+			textArea.setText(textArea.getText() + "\n" + response.getMessage());
 		} else {
-			textArea.setText(textArea.getText() + "\n\nAttempts: " + attempts + "\n\n" + response.getMessage()
+			textArea.setText(textArea.getText() + "\n" + response.getMessage()
 					+ " (line " + response.getLine() + ")");
 		}
 	}

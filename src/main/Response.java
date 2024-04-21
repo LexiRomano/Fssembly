@@ -10,6 +10,11 @@ public class Response {
 		this.line = line;
 	}
 
+	public Response(String message) {
+		this.message = message;
+		this.line = -1;
+	}
+	
 	public String getMessage() {
 		return message;
 	}
