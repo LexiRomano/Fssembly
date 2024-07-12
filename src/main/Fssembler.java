@@ -10,6 +10,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -23,6 +24,8 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 
 public class Fssembler {
+	
+	// Some Java AWT Magic
 	private static Frame frame;
 	private static Panel panel;
 	private static JTextField textField;
@@ -39,11 +42,14 @@ public class Fssembler {
 		Font font = new Font("Consolas", 0, 16);
 		textField.setFont(font);
 		textField.setMargin(new Insets(2, 10, 2, 10));
+
+		// Handling an Enter keypress
 		textField.addActionListener(new AbstractAction() {
 			private static final long serialVersionUID = -6622822293547374865L;
 			@Override
 		    public void actionPerformed(ActionEvent e){handleGo();}
 		});
+
 		con.gridy = 0;
 		panel.add(textField, con);
 		
@@ -61,7 +67,7 @@ public class Fssembler {
 		
 		panel.add(scrollPane, con);
 		
-		frame = new Frame("Fssembler v0.5.0");
+		frame = new Frame("Fssembler v0.5.1");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
@@ -74,7 +80,11 @@ public class Fssembler {
 		frame.setVisible(true);
 		
 	}
-	
+
+	/*
+	 * Main event that occurs when enter is pressed
+	 */
+
 	private static void handleGo() {
 		attempts++;
 		try {
@@ -86,8 +96,8 @@ public class Fssembler {
 			var split = file.get(0).split(" ");
 			
 			if (split.length == 2 && split[0].equals("#") && split[1].equals("B")) {
-				// Batch assembling
-				outText(new Response("Batch assembling..."));
+				// Batch fssembling
+				outText(new Response("Batch fssembling..."));
 				
 				for (int i = 1; i < file.size(); i++) {
 					try {
@@ -100,7 +110,7 @@ public class Fssembler {
 					
 				}
 				
-				textArea.setText(textArea.getText() + "\n\nBatch assembling complete!");
+				textArea.setText(textArea.getText() + "\n\nBatch fssembling complete!");
 				
 			} else {
 				outText(fssemble(file, textField.getText()));
@@ -115,10 +125,9 @@ public class Fssembler {
 		}
 		
 	}
-	
+
 	private static int attempts = 0;
-	private static ArrayList<Referenceable> references;
-	
+
 	private static Response fssemble(ArrayList<String> fileIn, String fileName) {
 		String line;
 		int headerVarSpace = -1;
@@ -135,6 +144,7 @@ public class Fssembler {
 			}
 		}
 		
+		// Parsing address header
 		try {
 			if (fileIn.get(0).charAt(0) == '#') {
 				headerVarSpace = parseInt(fileIn.get(0).split(" ")[1]);
@@ -165,7 +175,7 @@ public class Fssembler {
 		// first pass: finding labels and variables
 		String[] split;
 		Referenceable r;
-		references = new ArrayList<Referenceable>();
+		ArrayList<Referenceable> references = new ArrayList<Referenceable>();
 		for (int i = 0; i < fileIn.size(); i++) {
 			line = fileIn.get(i);
 			if (line.length() == 0) {
@@ -306,6 +316,7 @@ public class Fssembler {
 			fileOut.set(32, String.format("%1$02X", (int)Math.ceil(fileOut.size() / 256.0)));
 		}
 		
+		// Writing to the output file
 		String outName = "";
 		try {
 			FileWriter fileW;
@@ -315,10 +326,14 @@ public class Fssembler {
 			if (fileName.split("/").length > 1) {
 				a = fileName.split("/")[0].length() + 1;
 			}
+
 			split = fileName.split("/");
-			split = split[split.length - 1].split("\\.");
-			int b = split[split.length - 1].length();
+			split = split[split.length - 1].split("\\."); // Regex is weird, this just splits on a .
+			int b = split[split.length - 1].length();     // Length of the file extension
+
 			outName += fileName.substring(a, fileName.length() - b - 1);
+			
+			verifyFoldersExist("fbn/" + outName);
 
 			fileW = new FileWriter("fbn/" + outName + ".fbn");
 			printW = new PrintWriter(fileW);
@@ -371,10 +386,14 @@ public class Fssembler {
 			if (fileName.split("/").length > 1) {
 				a = fileName.split("/")[0].length() + 1;
 			}
+
 			split = fileName.split("/");
-			split = split[split.length - 1].split("\\.");
-			int b = split[split.length - 1].length();
+			split = split[split.length - 1].split("\\."); // Regex is weird, this just splits on a .
+			int b = split[split.length - 1].length();     // Length of the file extension
+
 			outName += fileName.substring(a, fileName.length() - b - 1);
+			
+			verifyFoldersExist("fbn/" + outName);
 
 			fileW = new FileWriter("fbn/" + outName + ".fbn");
 			printW = new PrintWriter(fileW);
@@ -400,7 +419,7 @@ public class Fssembler {
 					+ " (line " + response.getLine() + ")");
 		}
 	}
-	
+
 	private static void outTextAppend(Response response) {
 		if (response.getLine() == -1) {
 			textArea.setText(textArea.getText() + "\n" + response.getMessage());
@@ -409,13 +428,13 @@ public class Fssembler {
 					+ " (line " + response.getLine() + ")");
 		}
 	}
-	
+
 	private static ArrayList<String> readFile(String fileName) throws IOException {
 		String line;
 		ArrayList<String> fileIn = new ArrayList<String>();
 		FileReader fileHandle;
 		BufferedReader fileStream;
-		
+
 		fileHandle = new FileReader(fileName);
 
 		fileStream = new BufferedReader(fileHandle);
@@ -438,7 +457,12 @@ public class Fssembler {
 		return Integer.parseInt(s);
 	}
 	
+	private static void verifyFoldersExist(String filePath) {
+		File f = new File(filePath);
+		f = new File(f.getParent());
+		if (!f.exists()) {
+			f.mkdirs();
+		}
+	}
+	
 }
-
-
-
