@@ -78,8 +78,7 @@ like this:
        src/disks/0/s1.txt
        ...
 
-Simply type in the path, name, and file extension to the batch file and the `Fssembler` will do the rest. And yes, it will count every single file in the
-batch file as an attempt.
+Simply type in the path, name, and file extension to the batch file and the `Fssembler` will do the rest.
 
 ## Datasheet
 

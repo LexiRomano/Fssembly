@@ -67,7 +67,7 @@ public class Fssembler {
 		
 		panel.add(scrollPane, con);
 		
-		frame = new Frame("Fssembler v0.5.1");
+		frame = new Frame("Fssembler v0.5.2");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
@@ -99,18 +99,26 @@ public class Fssembler {
 				// Batch fssembling
 				outText(new Response("Batch fssembling..."));
 				
+				failed = false;
 				for (int i = 1; i < file.size(); i++) {
 					try {
 						outTextAppend(fssemble(readFile(file.get(i)), file.get(i)));
 					} catch (FileNotFoundException e) {
+						failed = true;
 						outTextAppend(new Response("File \"" + file.get(i) + "\" not found!"));
 					} catch (IOException e) {
+						failed = true;
 						outTextAppend(new Response("An unexpected error occured :["));
+						break;
 					}
 					
 				}
 				
-				textArea.setText(textArea.getText() + "\n\nBatch fssembling complete!");
+				if (failed) {
+					textArea.setText(textArea.getText() + "\n\nBatch fssembling encountered an error!!");
+				} else {
+					textArea.setText(textArea.getText() + "\n\nBatch fssembling complete!");
+				}
 				
 			} else {
 				outText(fssemble(file, textField.getText()));
@@ -126,6 +134,7 @@ public class Fssembler {
 		
 	}
 
+	private static boolean failed;
 	private static int attempts = 0;
 
 	private static Response fssemble(ArrayList<String> fileIn, String fileName) {
@@ -133,6 +142,7 @@ public class Fssembler {
 		int headerVarSpace = -1;
 		
 		if (fileIn.size() == 0) {
+			failed = true;
 			return new Response("File is empty!");
 		}
 		
@@ -149,6 +159,7 @@ public class Fssembler {
 			if (fileIn.get(0).charAt(0) == '#') {
 				headerVarSpace = parseInt(fileIn.get(0).split(" ")[1]);
 			} else {
+				failed = true;
 				return new Response("Header formatted incorrectly!", 1);
 			}
 		} catch (Exception e) {
@@ -157,6 +168,7 @@ public class Fssembler {
 				return raw(fileIn, fileName, s.contains("P"));
 			}
 			if (!s.equals("A") && !s.equals("AP")) { // Automatic var space
+				failed = true;
 				return new Response("Header formatted incorrectly!", 1);
 			}
 		}
@@ -167,6 +179,7 @@ public class Fssembler {
 		if (fileIn.get(0).split(" ").length >= 3) {
 			name = fileIn.get(0).split(" ")[2];
 			if (name.length() > 32) {
+				failed = true;
 				return new Response("Executable name too long!", 1);
 			}
 		}
@@ -199,8 +212,10 @@ public class Fssembler {
 					}
 					
 				} catch (IllegalArgumentException e) {
+					failed = true;
 					return new Response(e.getMessage(), i + 1);
 				} catch (ArrayIndexOutOfBoundsException e) {
+					failed = true;
 					return new Response("Variable requires a name!", i + 1);
 				}
 			}
@@ -208,11 +223,13 @@ public class Fssembler {
 			if (r != null) {
 				for (char c : Command.getReservedChars()) {
 					if (r.getName().contains(String.valueOf(c))) {
+						failed = true;
 						return new Response("Variabe/label name contains a reserved character!", i + 1);
 					}
 				}
 				for (var ref : references) {
 					if (ref.getName().equals(r.getName())) {
+						failed = true;
 						return new Response("Duplicate variable/label name \""
 								+ r.getName() + "\"!", i + 1);
 					}
@@ -258,6 +275,7 @@ public class Fssembler {
 						}
 					}
 				} catch (IllegalArgumentException e) {
+					failed = true;
 					return new Response(e.getMessage(), i + 1);
 				}
 			}
@@ -345,6 +363,7 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
+			failed = true;
 			return new Response("Error when saving to \"fbn/" + outName + ".fbn\"");
 		}
 		
@@ -356,18 +375,31 @@ public class Fssembler {
 		var fileOut = new ArrayList<String>();
 		int line = 1;
 		int lineVal;
-		try {
-			while (line < fileIn.size()) {
-				
-				lineVal = parseInt(fileIn.get(line));
-				if (lineVal > 0xFF || lineVal < 0) {
-					return new Response("Number out of range!", line + 1);
-				}
-				fileOut.add(String.format("%1$02X", lineVal));
+
+		while (line < fileIn.size()) {
+			if (fileIn.get(line).length() == 0) {
+				// Blank line
 				line++;
+				continue;
 			}
-		} catch(NumberFormatException e) {
-			return new Response("Could not resolve number!", line + 1);
+			if (fileIn.get(line).charAt(0) == '\\') {
+				if (fileIn.get(line).length() == 1) {
+					return new Response("Incomplete ASCII escape!", line + 1);
+				}
+				fileOut.add(String.format("%1$02X", (int) fileIn.get(line).charAt(1)));
+			} else {
+				try {
+					lineVal = parseInt(fileIn.get(line).split(" ")[0]);
+					if (lineVal > 0xFF || lineVal < 0) {
+						failed = true;
+						return new Response("Number out of range!", line + 1);
+					}
+					fileOut.add(String.format("%1$02X", lineVal));
+				} catch(NumberFormatException e) {
+					// Treat it as a comment
+				}
+			}
+			line++;
 		}
 		
 		if (pad) {
@@ -405,6 +437,7 @@ public class Fssembler {
 			fileW.close();
 			printW.close();
 		} catch(IOException e) {
+			failed = true;
 			return new Response("Error when saving to \"fbn/" + outName + ".fbn\"", -1);
 		}
 		
