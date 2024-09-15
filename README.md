@@ -58,6 +58,8 @@ that will just take numbers and turn them directly into an `fbn` file. A raw fil
         212
         0b1110010
         0xFF
+        \h // ascii representation of characters
+        \i
         ...
 
 You can also pad a file with zeros to ensure it's length is a multple of 256. To do this, simply add a P to the end of the first part of the address header.

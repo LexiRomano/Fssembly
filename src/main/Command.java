@@ -36,6 +36,10 @@ public class Command {
 		RFS,
 		REL,
 		REP,
+		PIN,
+		RIN,
+		CIN,
+		TGI,
 		NOP,
 		SHD;
 		
@@ -52,6 +56,9 @@ public class Command {
 				RFS,
 				REL,
 				REP,
+				PIN,
+				RIN,
+				CIN,
 				NOP,
 				SHD
 		};
@@ -72,7 +79,8 @@ public class Command {
 				SUB,
 				AND,
 				ORR,
-				XOR
+				XOR,
+				TGI
 		};
 		
 		public static boolean isI(COMMANDS c) {
@@ -103,7 +111,8 @@ public class Command {
 				JNE,
 				JNS,
 				JOV,
-				JOS
+				JOS,
+				TGI
 		};
 		
 		public static boolean isL(COMMANDS c) {
@@ -123,7 +132,8 @@ public class Command {
 				SUB,
 				AND,
 				ORR,
-				XOR
+				XOR,
+				TGI
 		};
 		
 		public static boolean isX(COMMANDS c) {
@@ -157,7 +167,8 @@ public class Command {
 				JNE,
 				JNS,
 				JOV,
-				JOS
+				JOS,
+				TGI
 		};
 		
 		public static boolean isP(COMMANDS c) {
@@ -171,7 +182,12 @@ public class Command {
 		
 		public static COMMANDS[] PNP = {
 				LDA,
-				STA
+				STA,
+				ADD,
+				SUB,
+				AND,
+				ORR,
+				XOR
 		};
 		
 		public static boolean isPNP(COMMANDS c) {
@@ -237,6 +253,10 @@ public class Command {
 			put(RFS, 0x15);
 			put(REL, 0x01);
 			put(REP, 0x81);
+			put(PIN, 0x35);
+			put(RIN, 0x55);
+			put(CIN, 0x75);
+			put(TGI, 0x06);
 			put(NOP, 0x00);
 			put(SHD, 0xFF);
 	}};
@@ -361,7 +381,7 @@ public class Command {
 				}
 				modifier = MODIFIERS.getModifier(argument, this.command, null);
 				if (literal < 0
-						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && !this.command.equals(COMMANDS.LDX))
+						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && !this.command.equals(COMMANDS.LDX) && !this.command.equals(COMMANDS.TGI))
 						|| literal > 0xffff) {
 					throw new IllegalArgumentException("Literal out of range!");
 				}
@@ -436,7 +456,7 @@ public class Command {
 			return 1;
 		}
 		if (modifier.equals(MODIFIERS.I)) {
-			if (command.equals(COMMANDS.LDX)) {
+			if (command.equals(COMMANDS.LDX) || command.equals(COMMANDS.TGI)) {
 				return 3;
 			}
 			return 2;

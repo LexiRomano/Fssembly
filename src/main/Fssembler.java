@@ -67,7 +67,7 @@ public class Fssembler {
 		
 		panel.add(scrollPane, con);
 		
-		frame = new Frame("Fssembler v0.5.2");
+		frame = new Frame("Fssembler v0.6.0");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
