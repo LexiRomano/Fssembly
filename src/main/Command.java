@@ -40,6 +40,7 @@ public class Command {
 		RIN,
 		CIN,
 		TGI,
+		FAA,
 		NOP,
 		SHD;
 		
@@ -59,6 +60,7 @@ public class Command {
 				PIN,
 				RIN,
 				CIN,
+				FAA,
 				NOP,
 				SHD
 		};
@@ -83,8 +85,26 @@ public class Command {
 				TGI
 		};
 		
+		public static COMMANDS[] I_1 = {
+			LDA,
+			ADD,
+			SUB,
+			AND,
+			ORR,
+			XOR
+		};
+		
 		public static boolean isI(COMMANDS c) {
 			for (var i : I) {
+				if (c.equals(i)) {
+					return true;
+				}
+			}
+			return false;
+		}
+		
+		public static boolean isI_1(COMMANDS c) {
+			for (var i : I_1) {
 				if (c.equals(i)) {
 					return true;
 				}
@@ -112,7 +132,8 @@ public class Command {
 				JNS,
 				JOV,
 				JOS,
-				TGI
+				TGI,
+				FAA
 		};
 		
 		public static boolean isL(COMMANDS c) {
@@ -133,7 +154,8 @@ public class Command {
 				AND,
 				ORR,
 				XOR,
-				TGI
+				TGI,
+				FAA
 		};
 		
 		public static boolean isX(COMMANDS c) {
@@ -168,7 +190,8 @@ public class Command {
 				JNS,
 				JOV,
 				JOS,
-				TGI
+				TGI,
+				FAA
 		};
 		
 		public static boolean isP(COMMANDS c) {
@@ -187,7 +210,8 @@ public class Command {
 				SUB,
 				AND,
 				ORR,
-				XOR
+				XOR,
+				FAA
 		};
 		
 		public static boolean isPNP(COMMANDS c) {
@@ -257,6 +281,7 @@ public class Command {
 			put(RIN, 0x55);
 			put(CIN, 0x75);
 			put(TGI, 0x06);
+			put(FAA, 0x16);
 			put(NOP, 0x00);
 			put(SHD, 0xFF);
 	}};
@@ -279,7 +304,9 @@ public class Command {
 				throw new IllegalArgumentException(com.toString() + " command requires an argument!");
 			}
 			if (s != null && COMMANDS.isNA(com)) {
-				throw new IllegalArgumentException(com.toString() + " command does not accept an argument!");
+				if (!com.equals(COMMANDS.FAA)) {// Special exception
+					throw new IllegalArgumentException(com.toString() + " command does not accept an argument!");
+				}
 			}
 			char c = s.charAt(0);
 			if (c == '@') {
@@ -381,7 +408,7 @@ public class Command {
 				}
 				modifier = MODIFIERS.getModifier(argument, this.command, null);
 				if (literal < 0
-						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && !this.command.equals(COMMANDS.LDX) && !this.command.equals(COMMANDS.TGI))
+						|| (literal > 0xff && modifier.equals(MODIFIERS.I) && COMMANDS.isI_1(this.command))
 						|| literal > 0xffff) {
 					throw new IllegalArgumentException("Literal out of range!");
 				}
@@ -412,56 +439,95 @@ public class Command {
 	}
 	
 	public String[] getOutput() {
+		String[] out = new String[getLength()];
+		int i = 0;
 		if (reference != null && (reference instanceof Label ||
 				(reference instanceof Variable && ((Variable) reference).isRelative()))) {
-			var out = new String[getLength()];
-			out[0] = String.format("%1$02X", COMMANDS.REL.getValue(MODIFIERS.NA));
-			out[1] = String.format("%1$02X", command.getValue(modifier));
-			out[2] = String.format("%1$02X", ((reference.getLine() - rOffset - 1 + plusModifier) & 0xFF00) >> 8);
-			out[3] = String.format("%1$02X", (reference.getLine() - rOffset - 1 + plusModifier) & 0xFF);
-			if (modifier.equals(MODIFIERS.PNP)) {
-				out[out.length - 1] = "01";
+			// Relative commands and all labels require a REL modifier
+			out[i] = String.format("%1$02X", COMMANDS.REL.getValue(MODIFIERS.NA));
+			i++;
+		}
+		
+		// The command itself
+		out[i] = String.format("%1$02X", command.getValue(modifier));
+		i++;
+		
+		if (modifier.equals(MODIFIERS.NA) || modifier.equals(MODIFIERS.X)) {
+			// No more arguments, we're done!
+			return out;
+		}
+		
+		if (modifier.equals(MODIFIERS.I)) {
+			// Immediate commands can have either 1 or 2 byte arugments
+			if (COMMANDS.isI_1(command)) {
+				out[i] = String.format("%1$02X", literal);
+				i++;
+			} else {
+				out[i] = String.format("%1$02X", (literal & 0xFF00) >> 8);
+				i++;
+				out[i] = String.format("%1$02X", literal & 0xFF);
+				i++;
 			}
 			return out;
 		}
-		var out = new String[getLength()];
-		out[0] = String.format("%1$02X", command.getValue(modifier));
-		if (out.length == 1) {
-			return out;
-		}
-		if (out.length == 2) {
-			out[1] = String.format("%1$02X", literal);
-			return out;
-		}
-		if (reference == null) {
-			out[1] = String.format("%1$02X", ((literal + plusModifier) & 0xFF00) >> 8);
-			out[2] = String.format("%1$02X", (literal + plusModifier) & 0xFF);
+		
+		// Only remaining modifiers are I, L, LX, P, and PNP which all take an address as an argument
+		
+		if (reference != null) {
+			if (reference instanceof Label || (reference instanceof Variable && ((Variable) reference).isRelative())) {
+				// Relatives and labels need to use rOffset
+				out[i] = String.format("%1$02X", ((reference.getLine() - rOffset - 1 + plusModifier) & 0xFF00) >> 8);
+				i++;
+				out[i] = String.format("%1$02X", (reference.getLine() - rOffset - 1 + plusModifier) & 0xFF);
+				i++;
+			} else {
+				out[i] = String.format("%1$02X", ((reference.getLine() + plusModifier) & 0xFF00) >> 8);
+				i++;
+				out[i] = String.format("%1$02X", (reference.getLine() + plusModifier) & 0xFF);
+				i++;
+			}
 		} else {
-			out[1] = String.format("%1$02X", ((reference.getLine() + plusModifier) & 0xFF00) >> 8);
-			out[2] = String.format("%1$02X", (reference.getLine() + plusModifier) & 0xFF);
+			// No reference means a literal was used
+			out[i] = String.format("%1$02X", ((literal + plusModifier) & 0xFF00) >> 8);
+			i++;
+			out[i] = String.format("%1$02X", (literal + plusModifier) & 0xFF);
+			i++;
+		}
+		
+		if (modifier.equals(MODIFIERS.PNP)) {
+			// PNP uses an extra byte at the end to reference another byte a the
+			// pointer's location. Currently, we only support pointers to doubles
+			out[i] = "01";
+			i++;
 		}
 		
 		return out;
 	}
 	
 	public int getLength() {
-		if (reference != null && (reference instanceof Label ||
-				(reference instanceof Variable && ((Variable) reference).isRelative()))) {
-			if (modifier.equals(MODIFIERS.PNP)) {
-				return 5;
+		int len = 1; // base command
+		if (reference != null) {
+			if (reference instanceof Variable) {
+				if (((Variable) reference).isRelative()) {
+					len += 1; // space for the REL modifier
+				}
+			} else if (reference instanceof Label) {
+				len += 1; // space for the REL modifier
 			}
-			return 4;
 		}
-		if (modifier.equals(MODIFIERS.NA) || modifier.equals(MODIFIERS.X)) {
-			return 1;
-		}
-		if (modifier.equals(MODIFIERS.I)) {
-			if (command.equals(COMMANDS.LDX) || command.equals(COMMANDS.TGI)) {
-				return 3;
+
+		if (modifier.equals(MODIFIERS.PNP)) {
+			len += 3; // 2 for the address, 1 for the +
+		} else if (modifier.equals(MODIFIERS.I)) {
+			if (COMMANDS.isI_1(command)) {
+				len += 1; // arguments with only 1 byte
+			} else {
+				len += 2; // arguments with 2 bytes
 			}
-			return 2;
+		} else if (!modifier.equals(MODIFIERS.NA) && !modifier.equals(MODIFIERS.X)) {
+			len += 2; // Not I, NA, or X, so the argument is an address
 		}
-		return 3;
+		return len;
 	}
 	
 	public static char[] getReservedChars() {
