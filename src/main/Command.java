@@ -148,7 +148,6 @@ public class Command {
 		public static COMMANDS[] X_LX = {
 				LDA,
 				STA,
-				LDX,
 				ADD,
 				SUB,
 				AND,
@@ -174,7 +173,6 @@ public class Command {
 		public static COMMANDS[] P = {
 				LDA,
 				STA,
-				LDX,
 				ADD,
 				SUB,
 				AND,
