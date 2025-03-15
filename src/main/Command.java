@@ -326,6 +326,12 @@ public class Command {
 				}
 				throw new IllegalArgumentException(com.toString() + " does not support the LX modifier");
 			} else if (c == '$') {
+				if (s.charAt(s.length() - 1) == '+') {
+					if (COMMANDS.isPNP(com)) {
+						return PNP;
+					}
+					throw new IllegalArgumentException("The \"+\" modifier is not supported in this use");
+				}
 				if (COMMANDS.isP(com)) {
 					return P;
 				}
@@ -387,8 +393,14 @@ public class Command {
 		if (cleanedArgument.length() > 0 && isReservedChar(cleanedArgument.charAt(cleanedArgument.length() - 1))) {
 			cleanedArgument = cleanedArgument.substring(0, cleanedArgument.length() - 1);
 		}
+		
 		for (var r : references) {
-			if (cleanedArgument.equals(r.getName())) {
+			if (r instanceof Variable && cleanedArgument.equals(r.getName())) {
+				reference = r;
+				break;
+			}
+			// Labels should not be cleaned since they don't support any modifiers
+			if (r instanceof Label && argument.equals(r.getName())) {
 				reference = r;
 				break;
 			}
@@ -398,7 +410,15 @@ public class Command {
 			try {
 				char c = argument.charAt(0);
 				if (c == '@' || c == '*' || c == '$') {
-					literal = parseInt(argument.substring(1));
+					if (argument.charAt(argument.length() - 1) == '+') {
+						literal = parseInt(argument.substring(1, argument.length() - 1));
+						if (c != '$') {
+							literal++;
+						}
+					} else {
+						literal = parseInt(argument.substring(1));
+					}
+					
 				} else if (c == '^') {
 					literal = 0;
 				} else {
@@ -416,7 +436,7 @@ public class Command {
 		} else {
 			modifier = MODIFIERS.getModifier(argument, this.command, reference);
 		}
-		if (argument.endsWith("+")) {
+		if (argument.endsWith("+") && reference != null) {
 			if (reference instanceof Variable && ((Variable) reference).getType().getSize() == 2) {
 				if (!modifier.equals(MODIFIERS.PNP)) {
 					plusModifier = 1;

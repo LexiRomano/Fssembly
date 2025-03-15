@@ -54,7 +54,7 @@ public class Fssembler {
 		panel.add(textField, con);
 		
 		textArea = new JTextArea("Please enter the file name above (relative path and file extension included)",
-				5, 50);
+				8, 50);
 		textArea.setLineWrap(true);
 		textArea.setWrapStyleWord(true);
 		textArea.setFont(font);
@@ -67,7 +67,7 @@ public class Fssembler {
 		
 		panel.add(scrollPane, con);
 		
-		frame = new Frame("Fssembler v0.6.1");
+		frame = new Frame("Fssembler v0.6.2");
 		frame.addWindowListener(new WindowAdapter() {
 			public void windowClosing(WindowEvent e) {
 				frame.dispose();
@@ -75,6 +75,7 @@ public class Fssembler {
 		});
 		
 		frame.add(panel);
+		frame.setResizable(false);
 		frame.setLocation(50, 50);
 		frame.pack();
 		frame.setVisible(true);
@@ -139,6 +140,8 @@ public class Fssembler {
 
 	private static Response fssemble(ArrayList<String> fileIn, String fileName) {
 		String line;
+		String[] split;
+		Referenceable r;
 		int headerVarSpace = -1;
 		
 		if (fileIn.size() == 0) {
@@ -184,10 +187,37 @@ public class Fssembler {
 			}
 		}
 		
+		// first pass: parsing macros
+		ArrayList<Macro> macros = new ArrayList<Macro>();
+		for (int  i = 0; i < fileIn.size(); i++) {
+			line = fileIn.get(i);
+			if (line.length() == 0) {
+				continue;
+			}
+			
+			split = line.split(" ");
+			
+			if (split[0].equals("Mac")) {
+				if (split.length != 3) {
+					failed = true;
+					return new Response("Incorrect number of arguments for macro!", i + 1);
+				}
+				macros.add(new Macro(split[1], split[2]));
+				fileIn.set(i, ""); // Set to an empty line as to not cause any chaos
+			}
+		}
 		
-		// first pass: finding labels and variables
-		String[] split;
-		Referenceable r;
+		// second pass: expanding macros
+		for (int i = 0; i < fileIn.size(); i++) {
+			line = fileIn.get(i);
+			for (var m : macros) {
+				line = line.replaceAll(m.getName(), m.getExpansion());
+			}
+			fileIn.set(i, line);
+		}
+		
+		
+		// third pass: finding labels and variables
 		ArrayList<Referenceable> references = new ArrayList<Referenceable>();
 		for (int i = 0; i < fileIn.size(); i++) {
 			line = fileIn.get(i);
@@ -239,7 +269,7 @@ public class Fssembler {
 			}
 		}
 		
-		// second pass: finding commands and locating labels
+		// fourth pass: finding commands and locating labels
 		Command c;
 		var commands = new ArrayList<Command>();
 		int outLine = 0;
@@ -281,7 +311,7 @@ public class Fssembler {
 			}
 		}
 		
-		// Third pass: assigning relative variable locations (if applicable)
+		// fifth pass: assigning relative variable locations (if applicable)
 		if (headerVarSpace == -1) {
 			headerVarSpace = 0;
 			for (var ref : references) {
